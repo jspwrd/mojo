@@ -1,6 +1,6 @@
 [package]
 name = "mojo"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 
 [dependencies]
@@ -13,3 +13,9 @@ filetime = "0.2"
 git2 = "0.19"
 which = "7"
 colored = "3"
+num_cpus = "1"
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+tempfile = "3"

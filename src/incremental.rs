@@ -24,15 +24,15 @@ impl FreshnessChecker {
                     .extension()
                     .and_then(|e| e.to_str())
                     .unwrap_or("");
-                if matches!(ext, "h" | "hpp" | "hxx" | "hh") {
-                    if let Ok(meta) = entry.metadata() {
-                        let mtime = FileTime::from_last_modification_time(&meta);
-                        newest = Some(match newest {
-                            Some(prev) if mtime > prev => mtime,
-                            Some(prev) => prev,
-                            None => mtime,
-                        });
-                    }
+                if matches!(ext, "h" | "hpp" | "hxx" | "hh")
+                    && let Ok(meta) = entry.metadata()
+                {
+                    let mtime = FileTime::from_last_modification_time(&meta);
+                    newest = Some(match newest {
+                        Some(prev) if mtime > prev => mtime,
+                        Some(prev) => prev,
+                        None => mtime,
+                    });
                 }
             }
         }
@@ -55,10 +55,10 @@ impl FreshnessChecker {
             return false;
         }
 
-        if let Some(hdr_mtime) = self.newest_header {
-            if hdr_mtime > obj_mtime {
-                return false;
-            }
+        if let Some(hdr_mtime) = self.newest_header
+            && hdr_mtime > obj_mtime
+        {
+            return false;
         }
 
         true

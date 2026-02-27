@@ -4,7 +4,7 @@ use crate::build;
 use crate::project::Project;
 use crate::util;
 
-pub fn exec(release: bool, args: &[String]) -> anyhow::Result<()> {
+pub fn exec(release: bool, jobs: Option<usize>, args: &[String]) -> anyhow::Result<()> {
     let project = Project::discover()?;
 
     if project.config.is_lib() {
@@ -13,7 +13,7 @@ pub fn exec(release: bool, args: &[String]) -> anyhow::Result<()> {
         );
     }
 
-    let result = build::build(&project, release)?;
+    let result = build::build(&project, release, jobs)?;
 
     util::status("Running", &format!("`{}`", result.output.display()));
 

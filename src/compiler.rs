@@ -4,14 +4,7 @@ use std::process::Command;
 
 use crate::config::Profile;
 
-#[derive(Debug, Clone, Copy)]
-pub enum CompilerFamily {
-    Gcc,
-    Clang,
-}
-
 pub struct Compiler {
-    pub family: CompilerFamily,
     pub c_path: PathBuf,
     pub cxx_path: PathBuf,
 }
@@ -37,12 +30,18 @@ impl Compiler {
         match compiler_pref {
             "clang" => Self::find_clang(),
             "gcc" => Self::find_gcc(),
-            "auto" | _ => {
+            _ => {
                 // Try clang first, then gcc
                 Self::find_clang().or_else(|_| Self::find_gcc()).with_context(|| {
+                    let hint = if cfg!(target_os = "macos") {
+                        ". Try: xcode-select --install"
+                    } else {
+                        ". Try: sudo apt install build-essential"
+                    };
                     format!(
-                        "could not find a {} compiler. Install gcc or clang",
-                        if lang == "c" { "C" } else { "C++" }
+                        "could not find a {} compiler{}",
+                        if lang == "c" { "C" } else { "C++" },
+                        hint
                     )
                 })
             }
@@ -53,7 +52,6 @@ impl Compiler {
         let c = which::which("clang").context("clang not found")?;
         let cxx = which::which("clang++").context("clang++ not found")?;
         Ok(Self {
-            family: CompilerFamily::Clang,
             c_path: c,
             cxx_path: cxx,
         })
@@ -63,7 +61,6 @@ impl Compiler {
         let c = which::which("gcc").context("gcc not found")?;
         let cxx = which::which("g++").context("g++ not found")?;
         Ok(Self {
-            family: CompilerFamily::Gcc,
             c_path: c,
             cxx_path: cxx,
         })
@@ -97,6 +94,18 @@ impl Compiler {
         }
 
         let compiler = self.compiler_for(lang);
+
+        if crate::util::is_verbose() {
+            let cmd_str = format!(
+                "{} -c {} -o {} {}",
+                compiler.display(),
+                source.display(),
+                object.display(),
+                flags.join(" ")
+            );
+            crate::util::verbose("Running", &cmd_str);
+        }
+
         let status = Command::new(compiler)
             .arg("-c")
             .arg(source)
@@ -118,6 +127,19 @@ impl Compiler {
         }
 
         let linker = self.linker(has_cpp);
+
+        if crate::util::is_verbose() {
+            let objs: Vec<_> = objects.iter().map(|o| o.display().to_string()).collect();
+            let cmd_str = format!(
+                "{} {} -o {} {}",
+                linker.display(),
+                objs.join(" "),
+                output.display(),
+                flags.join(" ")
+            );
+            crate::util::verbose("Running", &cmd_str);
+        }
+
         let status = Command::new(linker)
             .args(objects)
             .arg("-o")
@@ -157,6 +179,7 @@ pub fn build_compile_flags(
     std: Option<&str>,
     include_paths: &[PathBuf],
     pic: bool,
+    extra_cflags: &[String],
 ) -> Vec<String> {
     let mut flags = Vec::new();
 
@@ -185,13 +208,19 @@ pub fn build_compile_flags(
         flags.push("-flto".to_string());
     }
 
+    flags.extend_from_slice(extra_cflags);
+
     flags
 }
 
-pub fn build_link_flags(profile: &Profile) -> Vec<String> {
+pub fn build_link_flags(profile: &Profile, extra_ldflags: &[String], libs: &[String]) -> Vec<String> {
     let mut flags = Vec::new();
     if profile.lto {
         flags.push("-flto".to_string());
+    }
+    flags.extend_from_slice(extra_ldflags);
+    for lib in libs {
+        flags.push(format!("-l{}", lib));
     }
     flags
 }

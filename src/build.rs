@@ -1,5 +1,7 @@
-use anyhow::{bail, Context};
+use anyhow::{anyhow, bail, Context};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Mutex;
 use std::time::Instant;
 
 use crate::compiler::{build_compile_flags, build_link_flags, Compiler, Language};
@@ -11,14 +13,21 @@ use crate::util;
 pub struct BuildResult {
     /// Primary output path (executable, or static lib for lib projects)
     pub output: PathBuf,
-    pub profile_name: String,
-    pub is_lib: bool,
 }
 
-pub fn build(project: &Project, release: bool) -> anyhow::Result<BuildResult> {
+pub fn build(
+    project: &Project,
+    release: bool,
+    jobs: Option<usize>,
+) -> anyhow::Result<BuildResult> {
     let start = Instant::now();
     let profile_name = if release { "release" } else { "debug" };
     let profile = project.config.profile(profile_name);
+
+    let num_jobs = jobs
+        .or(project.config.build.jobs)
+        .unwrap_or_else(num_cpus::get)
+        .max(1);
 
     let compiler = Compiler::detect(
         &project.config.build.compiler,
@@ -44,7 +53,13 @@ pub fn build(project: &Project, release: bool) -> anyhow::Result<BuildResult> {
     // Compile flags
     let needs_pic = project.config.is_lib()
         && matches!(project.config.package.lib_type.as_str(), "shared" | "both");
-    let flags = build_compile_flags(&profile, project.config.package.std.as_deref(), &include_paths, needs_pic);
+    let flags = build_compile_flags(
+        &profile,
+        project.config.package.std.as_deref(),
+        &include_paths,
+        needs_pic,
+        &project.config.build.cflags,
+    );
 
     // Build dependencies first
     let mut dep_archives: Vec<PathBuf> = Vec::new();
@@ -52,7 +67,8 @@ pub fn build(project: &Project, release: bool) -> anyhow::Result<BuildResult> {
         if dep.sources.is_empty() {
             continue; // header-only dep
         }
-        let archive = build_dependency(project, dep, profile_name, &compiler, &flags, &checker)?;
+        let archive =
+            build_dependency(project, dep, profile_name, &compiler, &flags, &checker, num_jobs)?;
         dep_archives.push(archive);
     }
 
@@ -70,15 +86,16 @@ pub fn build(project: &Project, release: bool) -> anyhow::Result<BuildResult> {
         ),
     );
 
-    // Compile project sources
+    // Determine which sources need compilation
     let obj_dir = project.obj_dir(profile_name);
-    let mut objects: Vec<PathBuf> = Vec::new();
     let mut has_cpp = project.config.package.lang == "c++";
-    let mut compiled_count = 0;
+    let mut all_objects: Vec<PathBuf> = Vec::new();
+    let mut stale: Vec<CompileJob> = Vec::new();
 
     for source in &sources {
         let ext = source.extension().and_then(|e| e.to_str()).unwrap_or("");
-        let lang = Language::from_extension(ext).unwrap();
+        let lang = Language::from_extension(ext)
+            .ok_or_else(|| anyhow!("unsupported source file extension: {}", source.display()))?;
         if lang == Language::Cpp {
             has_cpp = true;
         }
@@ -86,42 +103,55 @@ pub fn build(project: &Project, release: bool) -> anyhow::Result<BuildResult> {
         let obj_path = source_to_object(source, &project.src_dir(), &obj_dir);
 
         if !checker.is_fresh(source, &obj_path) {
-            compiler
-                .compile(source, &obj_path, lang, &flags)
-                .with_context(|| format!("failed to compile {}", source.display()))?;
-            compiled_count += 1;
+            stale.push(CompileJob {
+                source: source.clone(),
+                object: obj_path.clone(),
+                lang,
+            });
         }
 
-        objects.push(obj_path);
+        all_objects.push(obj_path);
+    }
+
+    let compiled_count = stale.len();
+
+    // Compile in parallel
+    if !stale.is_empty() {
+        compile_parallel(&stale, &compiler, &flags, num_jobs)?;
     }
 
     let is_lib = project.config.is_lib();
     let build_dir = project.build_dir(profile_name);
 
     let output = if is_lib {
-        // Library project — produce .a and/or .so/.dylib
         let lib_type = &project.config.package.lib_type;
-        let primary = build_lib(
+        build_lib(
             &project.config.package.name,
             lib_type,
-            &objects,
+            &all_objects,
             &dep_archives,
             &build_dir,
             &compiler,
-            &build_link_flags(&profile),
+            &build_link_flags(
+                &profile,
+                &project.config.build.ldflags,
+                &project.config.build.libs,
+            ),
             has_cpp,
             compiled_count,
-        )?;
-        primary
+        )?
     } else {
-        // Binary project — link into executable
-        objects.extend(dep_archives);
+        all_objects.extend(dep_archives);
         let output = build_dir.join(&project.config.package.name);
-        let link_flags = build_link_flags(&profile);
+        let link_flags = build_link_flags(
+            &profile,
+            &project.config.build.ldflags,
+            &project.config.build.libs,
+        );
 
         if compiled_count > 0 || !output.exists() {
             util::status("Linking", &project.config.package.name);
-            compiler.link(&objects, &output, &link_flags, has_cpp)?;
+            compiler.link(&all_objects, &output, &link_flags, has_cpp)?;
         }
         output
     };
@@ -132,13 +162,61 @@ pub fn build(project: &Project, release: bool) -> anyhow::Result<BuildResult> {
         &format!("{} target in {:.2}s", profile_name, elapsed.as_secs_f64()),
     );
 
-    Ok(BuildResult {
-        output,
-        profile_name: profile_name.to_string(),
-        is_lib,
-    })
+    Ok(BuildResult { output })
 }
 
+struct CompileJob {
+    source: PathBuf,
+    object: PathBuf,
+    lang: Language,
+}
+
+fn compile_parallel(
+    jobs: &[CompileJob],
+    compiler: &Compiler,
+    flags: &[String],
+    num_threads: usize,
+) -> anyhow::Result<()> {
+    if num_threads <= 1 || jobs.len() <= 1 {
+        // Sequential fallback
+        for job in jobs {
+            compiler
+                .compile(&job.source, &job.object, job.lang, flags)
+                .with_context(|| format!("failed to compile {}", job.source.display()))?;
+        }
+        return Ok(());
+    }
+
+    let idx = AtomicUsize::new(0);
+    let errors: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+    std::thread::scope(|s| {
+        for _ in 0..num_threads.min(jobs.len()) {
+            s.spawn(|| {
+                loop {
+                    let i = idx.fetch_add(1, Ordering::Relaxed);
+                    if i >= jobs.len() {
+                        break;
+                    }
+                    let job = &jobs[i];
+                    if let Err(e) = compiler.compile(&job.source, &job.object, job.lang, flags) {
+                        let mut errs = errors.lock().unwrap();
+                        errs.push(format!("{}: {:#}", job.source.display(), e));
+                    }
+                }
+            });
+        }
+    });
+
+    let errs = errors.into_inner().unwrap();
+    if !errs.is_empty() {
+        bail!("compilation failed:\n{}", errs.join("\n"));
+    }
+
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
 fn build_lib(
     name: &str,
     lib_type: &str,
@@ -172,7 +250,6 @@ fn build_lib(
         compiler.link(&all, &shared_path, &flags, has_cpp)?;
     }
 
-    // Return the primary output path
     if needs_static {
         Ok(static_path)
     } else {
@@ -195,6 +272,7 @@ fn build_dependency(
     compiler: &Compiler,
     flags: &[String],
     checker: &FreshnessChecker,
+    num_jobs: usize,
 ) -> anyhow::Result<PathBuf> {
     let dep_build_dir = project.deps_build_dir(profile_name).join(&dep.name);
     let dep_obj_dir = dep_build_dir.join("obj");
@@ -206,25 +284,38 @@ fn build_dependency(
         dep.root.clone()
     };
 
-    let mut objects: Vec<PathBuf> = Vec::new();
-    let mut any_compiled = false;
+    let mut all_objects: Vec<PathBuf> = Vec::new();
+    let mut stale: Vec<CompileJob> = Vec::new();
 
     for source in &dep.sources {
         let ext = source.extension().and_then(|e| e.to_str()).unwrap_or("");
-        let lang = Language::from_extension(ext).unwrap();
+        let lang = Language::from_extension(ext)
+            .ok_or_else(|| anyhow!("unsupported source file extension: {}", source.display()))?;
         let obj_path = source_to_object(source, &src_base, &dep_obj_dir);
 
         if !checker.is_fresh(source, &obj_path) {
-            util::status("Compiling", &format!("{} ({})", dep.name, source.file_name().unwrap().to_string_lossy()));
-            compiler.compile(source, &obj_path, lang, flags)?;
-            any_compiled = true;
+            let file_name = source
+                .file_name()
+                .map(|f| f.to_string_lossy().to_string())
+                .unwrap_or_else(|| source.display().to_string());
+            util::status("Compiling", &format!("{} ({})", dep.name, file_name));
+            stale.push(CompileJob {
+                source: source.clone(),
+                object: obj_path.clone(),
+                lang,
+            });
         }
 
-        objects.push(obj_path);
+        all_objects.push(obj_path);
     }
 
-    if any_compiled || !archive_path.exists() {
-        Compiler::archive(&objects, &archive_path)?;
+    if !stale.is_empty() {
+        compile_parallel(&stale, compiler, flags, num_jobs)?;
+    }
+
+    if !stale.is_empty() || !archive_path.exists() {
+        util::status("Archiving", &format!("lib{}.a", dep.name));
+        Compiler::archive(&all_objects, &archive_path)?;
     }
 
     Ok(archive_path)
@@ -238,12 +329,11 @@ fn collect_sources(dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
 
     for entry in walkdir::WalkDir::new(dir) {
         let entry = entry?;
-        if entry.file_type().is_file() {
-            if let Some(ext) = entry.path().extension().and_then(|e| e.to_str()) {
-                if Language::from_extension(ext).is_some() {
-                    sources.push(entry.into_path());
-                }
-            }
+        if entry.file_type().is_file()
+            && let Some(ext) = entry.path().extension().and_then(|e| e.to_str())
+            && Language::from_extension(ext).is_some()
+        {
+            sources.push(entry.into_path());
         }
     }
 
@@ -261,7 +351,8 @@ fn source_to_object(source: &Path, src_base: &Path, obj_dir: &Path) -> PathBuf {
         .collect::<Vec<_>>()
         .join("__");
 
-    let stem = stem.trim_end_matches(".c")
+    let stem = stem
+        .trim_end_matches(".c")
         .trim_end_matches(".cpp")
         .trim_end_matches(".cxx")
         .trim_end_matches(".cc");

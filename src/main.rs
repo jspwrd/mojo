@@ -5,7 +5,9 @@ mod compiler;
 mod config;
 mod deps;
 mod incremental;
+mod lock;
 mod project;
+mod scaffold;
 mod util;
 
 use clap::Parser;
@@ -20,12 +22,14 @@ fn main() {
 
 fn run() -> anyhow::Result<()> {
     let cli = Cli::parse();
+    util::set_verbosity(cli.verbose, cli.quiet);
 
     match cli.command {
         Command::New { name, lang, lib } => commands::new::exec(&name, &lang, lib),
         Command::Init { lang, lib } => commands::init::exec(&lang, lib),
-        Command::Build { release } => commands::build::exec(release),
-        Command::Run { release, args } => commands::run::exec(release, &args),
+        Command::Build { release, jobs } => commands::build::exec(release, jobs),
+        Command::Run { release, jobs, args } => commands::run::exec(release, jobs, &args),
         Command::Clean => commands::clean::exec(),
+        Command::Update => commands::update::exec(),
     }
 }

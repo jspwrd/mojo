@@ -3,6 +3,25 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+pub fn validate_project_name(name: &str) -> anyhow::Result<()> {
+    if name.is_empty() {
+        bail!("project name cannot be empty");
+    }
+    if name.contains('/') || name.contains('\\') || name.contains("..") {
+        bail!("project name '{}' contains invalid characters", name);
+    }
+    if !name
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+    {
+        bail!(
+            "project name '{}' must contain only alphanumeric characters, hyphens, or underscores",
+            name
+        );
+    }
+    Ok(())
+}
+
 #[derive(Debug, Deserialize)]
 pub struct MojoConfig {
     pub package: Package,
@@ -45,12 +64,24 @@ fn default_lib_type() -> String {
 pub struct BuildConfig {
     #[serde(default = "default_compiler")]
     pub compiler: String,
+    #[serde(default)]
+    pub cflags: Vec<String>,
+    #[serde(default)]
+    pub ldflags: Vec<String>,
+    #[serde(default)]
+    pub libs: Vec<String>,
+    #[serde(default)]
+    pub jobs: Option<usize>,
 }
 
 impl Default for BuildConfig {
     fn default() -> Self {
         Self {
             compiler: "auto".to_string(),
+            cflags: Vec::new(),
+            ldflags: Vec::new(),
+            libs: Vec::new(),
+            jobs: None,
         }
     }
 }
@@ -111,6 +142,12 @@ impl MojoConfig {
     }
 
     fn validate(&self) -> anyhow::Result<()> {
+        validate_project_name(&self.package.name)?;
+
+        if self.package.version.is_empty() {
+            bail!("package version cannot be empty");
+        }
+
         match self.package.lang.as_str() {
             "c" | "c++" => {}
             other => bail!("invalid lang '{}': expected 'c' or 'c++'", other),
@@ -141,6 +178,14 @@ impl MojoConfig {
             );
         }
 
+        // Validate profile opt_levels
+        if let Some(ref debug) = self.profile.debug {
+            validate_opt_level(&debug.opt_level)?;
+        }
+        if let Some(ref release) = self.profile.release {
+            validate_opt_level(&release.opt_level)?;
+        }
+
         Ok(())
     }
 
@@ -158,5 +203,52 @@ impl MojoConfig {
             }),
             _ => Profile::default(),
         }
+    }
+}
+
+fn validate_opt_level(level: &str) -> anyhow::Result<()> {
+    match level {
+        "0" | "1" | "2" | "3" | "s" | "z" => Ok(()),
+        other => bail!(
+            "invalid opt_level '{}': expected 0, 1, 2, 3, s, or z",
+            other
+        ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn valid_project_names() {
+        assert!(validate_project_name("hello").is_ok());
+        assert!(validate_project_name("my-lib").is_ok());
+        assert!(validate_project_name("my_lib").is_ok());
+        assert!(validate_project_name("lib123").is_ok());
+    }
+
+    #[test]
+    fn invalid_project_names() {
+        assert!(validate_project_name("").is_err());
+        assert!(validate_project_name("../bad").is_err());
+        assert!(validate_project_name("a/b").is_err());
+        assert!(validate_project_name("a\\b").is_err());
+        assert!(validate_project_name("hello world").is_err());
+        assert!(validate_project_name("hello!").is_err());
+    }
+
+    #[test]
+    fn valid_opt_levels() {
+        for level in &["0", "1", "2", "3", "s", "z"] {
+            assert!(validate_opt_level(level).is_ok());
+        }
+    }
+
+    #[test]
+    fn invalid_opt_levels() {
+        assert!(validate_opt_level("4").is_err());
+        assert!(validate_opt_level("fast").is_err());
+        assert!(validate_opt_level("").is_err());
     }
 }
