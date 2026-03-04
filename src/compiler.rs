@@ -1,4 +1,4 @@
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -32,18 +32,20 @@ impl Compiler {
             "gcc" => Self::find_gcc(),
             _ => {
                 // Try clang first, then gcc
-                Self::find_clang().or_else(|_| Self::find_gcc()).with_context(|| {
-                    let hint = if cfg!(target_os = "macos") {
-                        ". Try: xcode-select --install"
-                    } else {
-                        ". Try: sudo apt install build-essential"
-                    };
-                    format!(
-                        "could not find a {} compiler{}",
-                        if lang == "c" { "C" } else { "C++" },
-                        hint
-                    )
-                })
+                Self::find_clang()
+                    .or_else(|_| Self::find_gcc())
+                    .with_context(|| {
+                        let hint = if cfg!(target_os = "macos") {
+                            ". Try: xcode-select --install"
+                        } else {
+                            ". Try: sudo apt install build-essential"
+                        };
+                        format!(
+                            "could not find a {} compiler{}",
+                            if lang == "c" { "C" } else { "C++" },
+                            hint
+                        )
+                    })
             }
         }
     }
@@ -106,12 +108,7 @@ impl Compiler {
         }
     }
 
-    pub fn check(
-        &self,
-        source: &Path,
-        lang: Language,
-        flags: &[String],
-    ) -> anyhow::Result<()> {
+    pub fn check(&self, source: &Path, lang: Language, flags: &[String]) -> anyhow::Result<()> {
         let compiler = self.compiler_for(lang);
 
         if crate::util::is_verbose() {
@@ -196,7 +193,13 @@ impl Compiler {
         Ok(())
     }
 
-    pub fn link(&self, objects: &[PathBuf], output: &Path, flags: &[String], has_cpp: bool) -> anyhow::Result<()> {
+    pub fn link(
+        &self,
+        objects: &[PathBuf],
+        output: &Path,
+        flags: &[String],
+        has_cpp: bool,
+    ) -> anyhow::Result<()> {
         if let Some(parent) = output.parent() {
             std::fs::create_dir_all(parent)?;
         }
@@ -244,7 +247,11 @@ impl Compiler {
         Self::archive_with(objects, output, None)
     }
 
-    pub fn archive_with(objects: &[PathBuf], output: &Path, ar_path: Option<&str>) -> anyhow::Result<()> {
+    pub fn archive_with(
+        objects: &[PathBuf],
+        output: &Path,
+        ar_path: Option<&str>,
+    ) -> anyhow::Result<()> {
         if let Some(parent) = output.parent() {
             std::fs::create_dir_all(parent)?;
         }

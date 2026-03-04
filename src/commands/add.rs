@@ -1,4 +1,4 @@
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 
 use crate::config::MojoConfig;
 use crate::util;
@@ -25,8 +25,7 @@ pub fn exec(
         bail!("Mojo.toml not found in current directory");
     }
 
-    let content =
-        std::fs::read_to_string(&config_path).context("failed to read Mojo.toml")?;
+    let content = std::fs::read_to_string(&config_path).context("failed to read Mojo.toml")?;
 
     // Check for duplicate
     let config: MojoConfig = toml::from_str(&content).context("failed to parse Mojo.toml")?;

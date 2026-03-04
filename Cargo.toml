@@ -2,6 +2,13 @@
 name = "mojo"
 version = "1.0.0"
 edition = "2024"
+description = "A build tool and package manager for C and C++ projects"
+license = "MIT"
+repository = "https://github.com/jspwrd/mojo"
+homepage = "https://github.com/jspwrd/mojo"
+keywords = ["build", "c", "cpp", "package-manager"]
+categories = ["development-tools::build-utils"]
+exclude = [".github", "CLAUDE.md", "AGENTS.md"]
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }

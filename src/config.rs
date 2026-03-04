@@ -1,4 +1,4 @@
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -188,10 +188,7 @@ impl MojoConfig {
             }
         }
 
-        if !matches!(
-            self.build.compiler.as_str(),
-            "auto" | "gcc" | "clang"
-        ) {
+        if !matches!(self.build.compiler.as_str(), "auto" | "gcc" | "clang") {
             bail!(
                 "invalid compiler '{}': expected 'auto', 'gcc', or 'clang'",
                 self.build.compiler

@@ -13,7 +13,11 @@ pub fn exec() -> anyhow::Result<()> {
     let deps: Vec<_> = project.config.dependencies.iter().collect();
     for (i, (name, dep)) in deps.iter().enumerate() {
         let is_last = i == deps.len() - 1;
-        let prefix = if is_last { "\u{2514}\u{2500}\u{2500} " } else { "\u{251c}\u{2500}\u{2500} " };
+        let prefix = if is_last {
+            "\u{2514}\u{2500}\u{2500} "
+        } else {
+            "\u{251c}\u{2500}\u{2500} "
+        };
         let child_prefix = if is_last { "    " } else { "\u{2502}   " };
         print_dep(name, dep, &project.root, prefix, child_prefix, 1)?;
     }
@@ -40,15 +44,9 @@ fn print_dep(
             abs
         }
         Dependency::Git {
-            git,
-            tag,
-            branch,
-            ..
+            git, tag, branch, ..
         } => {
-            let version_hint = tag
-                .as_deref()
-                .or(branch.as_deref())
-                .unwrap_or("latest");
+            let version_hint = tag.as_deref().or(branch.as_deref()).unwrap_or("latest");
             println!("{}{} ({}) {}", prefix, name, git, version_hint);
             project_root.join("deps").join(name)
         }
@@ -59,23 +57,34 @@ fn print_dep(
     }
 
     // Try to load sub-dependency config
-    if dep_path.join("Mojo.toml").exists() {
-        if let Ok(config) = MojoConfig::load(&dep_path) {
-            let sub_deps: Vec<_> = config.dependencies.iter().collect();
-            for (j, (sub_name, sub_dep)) in sub_deps.iter().enumerate() {
-                let is_last = j == sub_deps.len() - 1;
-                let sub_prefix = format!(
-                    "{}{}",
-                    child_prefix,
-                    if is_last { "\u{2514}\u{2500}\u{2500} " } else { "\u{251c}\u{2500}\u{2500} " }
-                );
-                let sub_child = format!(
-                    "{}{}",
-                    child_prefix,
-                    if is_last { "    " } else { "\u{2502}   " }
-                );
-                print_dep(sub_name, sub_dep, &dep_path, &sub_prefix, &sub_child, depth + 1)?;
-            }
+    if dep_path.join("Mojo.toml").exists()
+        && let Ok(config) = MojoConfig::load(&dep_path)
+    {
+        let sub_deps: Vec<_> = config.dependencies.iter().collect();
+        for (j, (sub_name, sub_dep)) in sub_deps.iter().enumerate() {
+            let is_last = j == sub_deps.len() - 1;
+            let sub_prefix = format!(
+                "{}{}",
+                child_prefix,
+                if is_last {
+                    "\u{2514}\u{2500}\u{2500} "
+                } else {
+                    "\u{251c}\u{2500}\u{2500} "
+                }
+            );
+            let sub_child = format!(
+                "{}{}",
+                child_prefix,
+                if is_last { "    " } else { "\u{2502}   " }
+            );
+            print_dep(
+                sub_name,
+                sub_dep,
+                &dep_path,
+                &sub_prefix,
+                &sub_child,
+                depth + 1,
+            )?;
         }
     }
 

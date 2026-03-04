@@ -50,7 +50,9 @@ compiler = "auto"
     )?;
 
     if lib {
-        let header_path = cwd.join("include").join(format!("{}.{}", name, header_ext(lang)));
+        let header_path = cwd
+            .join("include")
+            .join(format!("{}.{}", name, header_ext(lang)));
         if !header_path.exists() {
             let (_, header_content, _) = lib_files(&name, lang);
             fs::write(&header_path, header_content)?;
@@ -70,7 +72,11 @@ compiler = "auto"
 
     // Generate sample test file if tests/ is empty
     let test_dir = cwd.join("tests");
-    if test_dir.read_dir().map(|mut d| d.next().is_none()).unwrap_or(true) {
+    if test_dir
+        .read_dir()
+        .map(|mut d| d.next().is_none())
+        .unwrap_or(true)
+    {
         let (test_ext, test_content) = test_file(&name, lang);
         fs::write(
             test_dir.join(format!("test_basic.{}", test_ext)),
