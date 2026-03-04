@@ -1,4 +1,4 @@
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -222,8 +222,8 @@ pub fn fetch_git_dep(
         repo.checkout_tree(&obj, None)?;
         repo.set_head_detached(obj.id())?;
     } else if let Some(rev) = rev {
-        let oid = git2::Oid::from_str(rev)
-            .with_context(|| format!("invalid revision '{}'", rev))?;
+        let oid =
+            git2::Oid::from_str(rev).with_context(|| format!("invalid revision '{}'", rev))?;
         let obj = repo.find_object(oid, None)?;
         repo.checkout_tree(&obj, None)?;
         repo.set_head_detached(oid)?;

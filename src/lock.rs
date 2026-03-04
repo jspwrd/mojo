@@ -35,8 +35,7 @@ impl LockFile {
 
     pub fn save(&self, project_root: &Path) -> anyhow::Result<()> {
         let lock_path = project_root.join("Mojo.lock");
-        let content = toml::to_string_pretty(self)
-            .context("failed to serialize lock file")?;
+        let content = toml::to_string_pretty(self).context("failed to serialize lock file")?;
         std::fs::write(&lock_path, content)
             .with_context(|| format!("failed to write {}", lock_path.display()))?;
         Ok(())

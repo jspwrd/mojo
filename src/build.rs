@@ -1,12 +1,12 @@
-use anyhow::{anyhow, bail, Context};
+use anyhow::{Context, anyhow, bail};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
-use crate::compiler::{build_compile_flags, build_link_flags, Compiler, Language};
+use crate::compiler::{Compiler, Language, build_compile_flags, build_link_flags};
 use crate::config::validate_sanitizers;
-use crate::deps::{resolve_dependencies, ResolvedDep};
+use crate::deps::{ResolvedDep, resolve_dependencies};
 use crate::incremental::FreshnessChecker;
 use crate::project::Project;
 use crate::util;
@@ -395,7 +395,10 @@ pub fn test(
         }
 
         if !stale.is_empty() {
-            util::status("Compiling", &format!("{} (lib)", project.config.package.name));
+            util::status(
+                "Compiling",
+                &format!("{} (lib)", project.config.package.name),
+            );
             compile_parallel(&stale, &compiler, &flags, num_jobs)?;
         }
 
@@ -535,41 +538,26 @@ fn resolve_compiler(
     project: &Project,
     target: Option<&str>,
 ) -> anyhow::Result<(Compiler, Option<String>)> {
-    if let Some(triple) = target {
-        if let Some(tc) = project.config.target.get(triple) {
-            let compiler = Compiler::from_target(tc, &project.config.package.lang)?;
-            return Ok((compiler, tc.ar.clone()));
-        }
+    if let Some(tc) = target.and_then(|triple| project.config.target.get(triple)) {
+        let compiler = Compiler::from_target(tc, &project.config.package.lang)?;
+        return Ok((compiler, tc.ar.clone()));
     }
-    let compiler = Compiler::detect(
-        &project.config.build.compiler,
-        &project.config.package.lang,
-    )?;
+    let compiler = Compiler::detect(&project.config.build.compiler, &project.config.package.lang)?;
     Ok((compiler, None))
 }
 
-fn merge_target_cflags(
-    config: &crate::config::MojoConfig,
-    target: Option<&str>,
-) -> Vec<String> {
+fn merge_target_cflags(config: &crate::config::MojoConfig, target: Option<&str>) -> Vec<String> {
     let mut cflags = config.build.cflags.clone();
-    if let Some(triple) = target {
-        if let Some(tc) = config.target.get(triple) {
-            cflags.extend(tc.cflags.clone());
-        }
+    if let Some(tc) = target.and_then(|triple| config.target.get(triple)) {
+        cflags.extend(tc.cflags.clone());
     }
     cflags
 }
 
-fn merge_target_ldflags(
-    config: &crate::config::MojoConfig,
-    target: Option<&str>,
-) -> Vec<String> {
+fn merge_target_ldflags(config: &crate::config::MojoConfig, target: Option<&str>) -> Vec<String> {
     let mut ldflags = config.build.ldflags.clone();
-    if let Some(triple) = target {
-        if let Some(tc) = config.target.get(triple) {
-            ldflags.extend(tc.ldflags.clone());
-        }
+    if let Some(tc) = target.and_then(|triple| config.target.get(triple)) {
+        ldflags.extend(tc.ldflags.clone());
     }
     ldflags
 }
@@ -769,9 +757,7 @@ fn build_dependency(
     target: Option<&str>,
     ar_override: Option<&str>,
 ) -> anyhow::Result<PathBuf> {
-    let dep_build_dir = project
-        .deps_build_dir(profile_name, target)
-        .join(&dep.name);
+    let dep_build_dir = project.deps_build_dir(profile_name, target).join(&dep.name);
     let dep_obj_dir = dep_build_dir.join("obj");
     let archive_path = dep_build_dir.join(format!("lib{}.a", dep.name));
 
