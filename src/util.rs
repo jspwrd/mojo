@@ -40,3 +40,15 @@ pub fn warn(message: &str) {
 pub fn error(message: &str) {
     eprintln!("{:>12} {}", "error".red().bold(), message);
 }
+
+pub fn pass(test_name: &str) {
+    if !is_quiet() {
+        println!("{:>12} {}", "PASS".green().bold(), test_name);
+    }
+}
+
+pub fn fail(test_name: &str) {
+    if !is_quiet() {
+        println!("{:>12} {}", "FAIL".red().bold(), test_name);
+    }
+}

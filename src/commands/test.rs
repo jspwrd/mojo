@@ -7,9 +7,15 @@ pub fn exec(
     sanitizers: &[String],
     profile: Option<&str>,
     target: Option<&str>,
+    filter: Option<&str>,
 ) -> anyhow::Result<()> {
     let project = Project::discover()?;
     let profile_name = profile.unwrap_or(if release { "release" } else { "debug" });
-    build::build(&project, profile_name, jobs, sanitizers, target)?;
+    let result = build::test(&project, profile_name, jobs, sanitizers, filter, target)?;
+
+    if result.failed > 0 {
+        std::process::exit(1);
+    }
+
     Ok(())
 }

@@ -31,19 +31,26 @@ impl Project {
         self.root.join("include")
     }
 
+    pub fn test_dir(&self) -> PathBuf {
+        self.root.join("tests")
+    }
+
     pub fn deps_dir(&self) -> PathBuf {
         self.root.join("deps")
     }
 
-    pub fn build_dir(&self, profile: &str) -> PathBuf {
-        self.root.join("build").join(profile)
+    pub fn build_dir(&self, profile: &str, target: Option<&str>) -> PathBuf {
+        match target {
+            Some(t) => self.root.join("build").join(format!("{}-{}", profile, t)),
+            None => self.root.join("build").join(profile),
+        }
     }
 
-    pub fn obj_dir(&self, profile: &str) -> PathBuf {
-        self.build_dir(profile).join("obj")
+    pub fn obj_dir(&self, profile: &str, target: Option<&str>) -> PathBuf {
+        self.build_dir(profile, target).join("obj")
     }
 
-    pub fn deps_build_dir(&self, profile: &str) -> PathBuf {
-        self.build_dir(profile).join("deps")
+    pub fn deps_build_dir(&self, profile: &str, target: Option<&str>) -> PathBuf {
+        self.build_dir(profile, target).join("deps")
     }
 }

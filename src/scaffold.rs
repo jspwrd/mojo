@@ -52,3 +52,43 @@ pub fn lib_files(name: &str, lang: &str) -> (&'static str, String, String) {
         ),
     }
 }
+
+pub fn test_file(name: &str, lang: &str) -> (&'static str, String) {
+    match lang {
+        "c" => (
+            "c",
+            format!(
+                r#"#include <stdio.h>
+#include <stdlib.h>
+
+int main(void) {{
+    /* test: basic assertion for {name} */
+    if (1 + 1 != 2) {{
+        fprintf(stderr, "FAIL: 1 + 1 != 2\n");
+        return 1;
+    }}
+    printf("All tests passed.\n");
+    return 0;
+}}
+"#,
+                name = name,
+            ),
+        ),
+        _ => (
+            "cpp",
+            format!(
+                r#"#include <iostream>
+#include <cassert>
+
+int main() {{
+    // test: basic assertion for {name}
+    assert(1 + 1 == 2);
+    std::cout << "All tests passed." << std::endl;
+    return 0;
+}}
+"#,
+                name = name,
+            ),
+        ),
+    }
+}

@@ -3,7 +3,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::config::validate_project_name;
-use crate::scaffold::{default_std, header_ext, lib_files, main_file};
+use crate::scaffold::{default_std, header_ext, lib_files, main_file, test_file};
 use crate::util;
 
 pub fn exec(name: &str, lang: &str, lib: bool) -> anyhow::Result<()> {
@@ -19,6 +19,7 @@ pub fn exec(name: &str, lang: &str, lib: bool) -> anyhow::Result<()> {
 
     fs::create_dir_all(dir.join("src"))?;
     fs::create_dir_all(dir.join("include"))?;
+    fs::create_dir_all(dir.join("tests"))?;
 
     let type_line = if lib {
         "type = \"lib\"\n".to_string()
@@ -57,6 +58,13 @@ compiler = "auto"
         let (ext, main_content) = main_file(lang);
         fs::write(dir.join("src").join(format!("main.{}", ext)), main_content)?;
     }
+
+    // Generate sample test file
+    let (test_ext, test_content) = test_file(name, lang);
+    fs::write(
+        dir.join("tests").join(format!("test_basic.{}", test_ext)),
+        test_content,
+    )?;
 
     fs::write(dir.join(".gitignore"), "/build/\n/deps/\n")?;
 

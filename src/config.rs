@@ -3,6 +3,8 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+pub const VALID_SANITIZERS: &[&str] = &["address", "undefined", "thread", "memory", "leak"];
+
 pub fn validate_project_name(name: &str) -> anyhow::Result<()> {
     if name.is_empty() {
         bail!("project name cannot be empty");
@@ -28,9 +30,13 @@ pub struct MojoConfig {
     #[serde(default)]
     pub build: BuildConfig,
     #[serde(default)]
-    pub profile: ProfileMap,
+    pub profile: HashMap<String, Profile>,
     #[serde(default)]
     pub dependencies: HashMap<String, Dependency>,
+    #[serde(default)]
+    pub scripts: Scripts,
+    #[serde(default)]
+    pub target: HashMap<String, TargetConfig>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -72,6 +78,8 @@ pub struct BuildConfig {
     pub libs: Vec<String>,
     #[serde(default)]
     pub jobs: Option<usize>,
+    #[serde(default)]
+    pub sanitizers: Vec<String>,
 }
 
 impl Default for BuildConfig {
@@ -82,18 +90,13 @@ impl Default for BuildConfig {
             ldflags: Vec::new(),
             libs: Vec::new(),
             jobs: None,
+            sanitizers: Vec::new(),
         }
     }
 }
 
 fn default_compiler() -> String {
     "auto".to_string()
-}
-
-#[derive(Debug, Deserialize, Default)]
-pub struct ProfileMap {
-    pub debug: Option<Profile>,
-    pub release: Option<Profile>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -114,6 +117,23 @@ impl Default for Profile {
             lto: false,
         }
     }
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct Scripts {
+    pub pre_build: Option<String>,
+    pub post_build: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct TargetConfig {
+    pub cc: Option<String>,
+    pub cxx: Option<String>,
+    pub ar: Option<String>,
+    #[serde(default)]
+    pub cflags: Vec<String>,
+    #[serde(default)]
+    pub ldflags: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -179,11 +199,22 @@ impl MojoConfig {
         }
 
         // Validate profile opt_levels
-        if let Some(ref debug) = self.profile.debug {
-            validate_opt_level(&debug.opt_level)?;
+        for (name, profile) in &self.profile {
+            if !profile.opt_level.is_empty() {
+                validate_opt_level(&profile.opt_level)
+                    .with_context(|| format!("in profile '{}'", name))?;
+            }
         }
-        if let Some(ref release) = self.profile.release {
-            validate_opt_level(&release.opt_level)?;
+
+        // Validate config sanitizers
+        for s in &self.build.sanitizers {
+            if !VALID_SANITIZERS.contains(&s.as_str()) {
+                bail!(
+                    "invalid sanitizer '{}'. Valid sanitizers: {}",
+                    s,
+                    VALID_SANITIZERS.join(", ")
+                );
+            }
         }
 
         Ok(())
@@ -194,13 +225,16 @@ impl MojoConfig {
     }
 
     pub fn profile(&self, name: &str) -> Profile {
+        if let Some(p) = self.profile.get(name) {
+            return p.clone();
+        }
         match name {
-            "debug" => self.profile.debug.clone().unwrap_or_default(),
-            "release" => self.profile.release.clone().unwrap_or(Profile {
+            "debug" => Profile::default(),
+            "release" => Profile {
                 opt_level: "3".to_string(),
                 debug: false,
                 lto: true,
-            }),
+            },
             _ => Profile::default(),
         }
     }
@@ -214,6 +248,19 @@ fn validate_opt_level(level: &str) -> anyhow::Result<()> {
             other
         ),
     }
+}
+
+pub fn validate_sanitizers(sanitizers: &[String]) -> anyhow::Result<()> {
+    for s in sanitizers {
+        if !VALID_SANITIZERS.contains(&s.as_str()) {
+            bail!(
+                "invalid sanitizer '{}'. Valid sanitizers: {}",
+                s,
+                VALID_SANITIZERS.join(", ")
+            );
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -250,5 +297,56 @@ mod tests {
         assert!(validate_opt_level("4").is_err());
         assert!(validate_opt_level("fast").is_err());
         assert!(validate_opt_level("").is_err());
+    }
+
+    #[test]
+    fn valid_sanitizers() {
+        assert!(validate_sanitizers(&["address".into(), "undefined".into()]).is_ok());
+        assert!(validate_sanitizers(&["thread".into()]).is_ok());
+        assert!(validate_sanitizers(&[]).is_ok());
+    }
+
+    #[test]
+    fn invalid_sanitizers() {
+        assert!(validate_sanitizers(&["bogus".into()]).is_err());
+        assert!(validate_sanitizers(&["address".into(), "invalid".into()]).is_err());
+    }
+
+    #[test]
+    fn profile_defaults() {
+        let config_str = r#"
+[package]
+name = "test"
+version = "0.1.0"
+"#;
+        let config: MojoConfig = toml::from_str(config_str).unwrap();
+        let debug = config.profile("debug");
+        assert_eq!(debug.opt_level, "0");
+        assert!(debug.debug);
+        assert!(!debug.lto);
+
+        let release = config.profile("release");
+        assert_eq!(release.opt_level, "3");
+        assert!(!release.debug);
+        assert!(release.lto);
+    }
+
+    #[test]
+    fn custom_profile() {
+        let config_str = r#"
+[package]
+name = "test"
+version = "0.1.0"
+
+[profile.custom]
+opt_level = "2"
+debug = true
+lto = true
+"#;
+        let config: MojoConfig = toml::from_str(config_str).unwrap();
+        let custom = config.profile("custom");
+        assert_eq!(custom.opt_level, "2");
+        assert!(custom.debug);
+        assert!(custom.lto);
     }
 }

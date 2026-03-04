@@ -10,6 +10,5 @@ pub fn exec(
 ) -> anyhow::Result<()> {
     let project = Project::discover()?;
     let profile_name = profile.unwrap_or(if release { "release" } else { "debug" });
-    build::build(&project, profile_name, jobs, sanitizers, target)?;
-    Ok(())
+    build::check(&project, profile_name, jobs, sanitizers, target)
 }
