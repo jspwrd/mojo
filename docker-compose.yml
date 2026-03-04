@@ -1,0 +1,6 @@
+services:
+  mojo:
+    build: .
+    volumes:
+      - .:/workspace
+    working_dir: /workspace
