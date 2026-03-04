@@ -1,4 +1,4 @@
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use std::path::PathBuf;
 
 use crate::build;
@@ -39,11 +39,11 @@ pub fn exec(prefix: Option<&str>, profile: Option<&str>) -> anyhow::Result<()> {
 }
 
 fn expand_prefix(prefix: &str) -> anyhow::Result<PathBuf> {
-    if prefix.starts_with("~/") {
+    if let Some(rest) = prefix.strip_prefix("~/") {
         let home = std::env::var("HOME")
             .or_else(|_| std::env::var("USERPROFILE"))
             .context("could not determine home directory")?;
-        Ok(PathBuf::from(home).join(&prefix[2..]))
+        Ok(PathBuf::from(home).join(rest))
     } else if prefix == "~" {
         let home = std::env::var("HOME")
             .or_else(|_| std::env::var("USERPROFILE"))

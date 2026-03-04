@@ -1,18 +1,16 @@
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use std::path::PathBuf;
 
 use crate::project::Project;
 use crate::util;
 
-const SOURCE_EXTENSIONS: &[&str] = &[
-    "c", "cpp", "cxx", "cc", "h", "hpp", "hxx", "hh",
-];
+const SOURCE_EXTENSIONS: &[&str] = &["c", "cpp", "cxx", "cc", "h", "hpp", "hxx", "hh"];
 
 pub fn exec(check: bool) -> anyhow::Result<()> {
     let project = Project::discover()?;
 
-    let clang_format =
-        which::which("clang-format").context("clang-format not found. Install it to use `mojo fmt`")?;
+    let clang_format = which::which("clang-format")
+        .context("clang-format not found. Install it to use `mojo fmt`")?;
 
     let mut files = Vec::new();
     collect_formattable(&project.src_dir(), &mut files)?;
@@ -83,12 +81,11 @@ fn collect_formattable(dir: &PathBuf, files: &mut Vec<PathBuf>) -> anyhow::Resul
 
     for entry in walkdir::WalkDir::new(dir) {
         let entry = entry?;
-        if entry.file_type().is_file() {
-            if let Some(ext) = entry.path().extension().and_then(|e| e.to_str()) {
-                if SOURCE_EXTENSIONS.contains(&ext) {
-                    files.push(entry.into_path());
-                }
-            }
+        if entry.file_type().is_file()
+            && let Some(ext) = entry.path().extension().and_then(|e| e.to_str())
+            && SOURCE_EXTENSIONS.contains(&ext)
+        {
+            files.push(entry.into_path());
         }
     }
 

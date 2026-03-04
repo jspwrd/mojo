@@ -47,7 +47,8 @@ compiler = "auto"
     if lib {
         let (ext, header_content, src_content) = lib_files(name, lang);
         fs::write(
-            dir.join("include").join(format!("{}.{}", name, header_ext(lang))),
+            dir.join("include")
+                .join(format!("{}.{}", name, header_ext(lang))),
             header_content,
         )?;
         fs::write(

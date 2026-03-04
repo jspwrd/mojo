@@ -1,10 +1,10 @@
-use assert_cmd::Command;
+use assert_cmd::cargo::cargo_bin_cmd;
 use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
 
-fn mojo() -> Command {
-    Command::cargo_bin("mojo").unwrap()
+fn mojo() -> assert_cmd::Command {
+    cargo_bin_cmd!("mojo")
 }
 
 // ── mojo new ────────────────────────────────────────────
@@ -206,8 +206,7 @@ fn path_dependency() {
         .success();
 
     // Update app's Mojo.toml to depend on mylib
-    let config = format!(
-        r#"[package]
+    let config = r#"[package]
 name = "app"
 version = "0.1.0"
 lang = "c"
@@ -217,9 +216,8 @@ std = "c11"
 compiler = "auto"
 
 [dependencies]
-mylib = {{ path = "../mylib" }}
-"#
-    );
+mylib = { path = "../mylib" }
+"#;
     fs::write(tmp.path().join("app/Mojo.toml"), config).unwrap();
 
     // Update app's main.c to use mylib
