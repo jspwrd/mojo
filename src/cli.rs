@@ -1,4 +1,32 @@
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
+use std::fmt;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum Framework {
+    Qt,
+    Gtk,
+    Libcurl,
+    Grpc,
+    Gtest,
+    Boost,
+    Freertos,
+    Zephyr,
+}
+
+impl fmt::Display for Framework {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Framework::Qt => write!(f, "Qt"),
+            Framework::Gtk => write!(f, "GTK"),
+            Framework::Libcurl => write!(f, "libcurl"),
+            Framework::Grpc => write!(f, "gRPC"),
+            Framework::Gtest => write!(f, "Google Test"),
+            Framework::Boost => write!(f, "Boost"),
+            Framework::Freertos => write!(f, "FreeRTOS"),
+            Framework::Zephyr => write!(f, "Zephyr"),
+        }
+    }
+}
 
 #[derive(Parser)]
 #[command(name = "mojo", version, about = "A build tool for C and C++")]
@@ -25,6 +53,30 @@ pub enum Command {
         /// Create a library project instead of an executable
         #[arg(long)]
         lib: bool,
+        /// Scaffold with Qt framework support
+        #[arg(long, group = "framework")]
+        qt: bool,
+        /// Scaffold with GTK framework support
+        #[arg(long, group = "framework")]
+        gtk: bool,
+        /// Scaffold with libcurl HTTP client support
+        #[arg(long, group = "framework")]
+        libcurl: bool,
+        /// Scaffold with gRPC framework support
+        #[arg(long, group = "framework")]
+        grpc: bool,
+        /// Scaffold with Google Test framework support
+        #[arg(long, group = "framework")]
+        gtest: bool,
+        /// Scaffold with Boost library support
+        #[arg(long, group = "framework")]
+        boost: bool,
+        /// Scaffold with FreeRTOS support
+        #[arg(long, group = "framework")]
+        freertos: bool,
+        /// Scaffold with Zephyr RTOS support
+        #[arg(long, group = "framework")]
+        zephyr: bool,
     },
     /// Initialize a mojo project in the current directory
     Init {
@@ -34,6 +86,30 @@ pub enum Command {
         /// Create a library project instead of an executable
         #[arg(long)]
         lib: bool,
+        /// Scaffold with Qt framework support
+        #[arg(long, group = "framework")]
+        qt: bool,
+        /// Scaffold with GTK framework support
+        #[arg(long, group = "framework")]
+        gtk: bool,
+        /// Scaffold with libcurl HTTP client support
+        #[arg(long, group = "framework")]
+        libcurl: bool,
+        /// Scaffold with gRPC framework support
+        #[arg(long, group = "framework")]
+        grpc: bool,
+        /// Scaffold with Google Test framework support
+        #[arg(long, group = "framework")]
+        gtest: bool,
+        /// Scaffold with Boost library support
+        #[arg(long, group = "framework")]
+        boost: bool,
+        /// Scaffold with FreeRTOS support
+        #[arg(long, group = "framework")]
+        freertos: bool,
+        /// Scaffold with Zephyr RTOS support
+        #[arg(long, group = "framework")]
+        zephyr: bool,
     },
     /// Check sources for errors without building
     Check {
@@ -153,4 +229,39 @@ pub enum Command {
     Clean,
     /// Update dependencies (re-fetch and regenerate Mojo.lock)
     Update,
+}
+
+/// Resolve framework bool flags into an `Option<Framework>`.
+pub fn resolve_framework(flags: &FrameworkFlags) -> Option<Framework> {
+    if flags.qt {
+        Some(Framework::Qt)
+    } else if flags.gtk {
+        Some(Framework::Gtk)
+    } else if flags.libcurl {
+        Some(Framework::Libcurl)
+    } else if flags.grpc {
+        Some(Framework::Grpc)
+    } else if flags.gtest {
+        Some(Framework::Gtest)
+    } else if flags.boost {
+        Some(Framework::Boost)
+    } else if flags.freertos {
+        Some(Framework::Freertos)
+    } else if flags.zephyr {
+        Some(Framework::Zephyr)
+    } else {
+        None
+    }
+}
+
+/// Collected framework bool flags from the CLI.
+pub struct FrameworkFlags {
+    pub qt: bool,
+    pub gtk: bool,
+    pub libcurl: bool,
+    pub grpc: bool,
+    pub gtest: bool,
+    pub boost: bool,
+    pub freertos: bool,
+    pub zephyr: bool,
 }
