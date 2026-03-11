@@ -39,7 +39,16 @@ fn run() -> anyhow::Result<()> {
             freertos,
             zephyr,
         } => {
-            let flags = FrameworkFlags { qt, gtk, libcurl, grpc, gtest, boost, freertos, zephyr };
+            let flags = FrameworkFlags {
+                qt,
+                gtk,
+                libcurl,
+                grpc,
+                gtest,
+                boost,
+                freertos,
+                zephyr,
+            };
             commands::new::exec(&name, &lang, lib, resolve_framework(&flags))
         }
         Command::Init {
@@ -54,7 +63,16 @@ fn run() -> anyhow::Result<()> {
             freertos,
             zephyr,
         } => {
-            let flags = FrameworkFlags { qt, gtk, libcurl, grpc, gtest, boost, freertos, zephyr };
+            let flags = FrameworkFlags {
+                qt,
+                gtk,
+                libcurl,
+                grpc,
+                gtest,
+                boost,
+                freertos,
+                zephyr,
+            };
             commands::init::exec(&lang, lib, resolve_framework(&flags))
         }
         Command::Check {

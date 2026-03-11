@@ -24,7 +24,11 @@ pub fn exec(name: &str, lang: &str, lib: bool, framework: Option<Framework>) -> 
 
     if let Some(fw) = framework {
         let cfg = framework_config(fw);
-        let actual_lang = if cfg.force_lang.is_empty() { lang } else { cfg.force_lang };
+        let actual_lang = if cfg.force_lang.is_empty() {
+            lang
+        } else {
+            cfg.force_lang
+        };
         let actual_std = if cfg.force_std.is_empty() {
             default_std(actual_lang).to_string()
         } else {
@@ -67,7 +71,8 @@ compiler = "auto"
         } else {
             let (ext, header_content, src_content) = lib_files(name, actual_lang);
             fs::write(
-                dir.join("include").join(format!("{}.{}", name, header_ext(actual_lang))),
+                dir.join("include")
+                    .join(format!("{}.{}", name, header_ext(actual_lang))),
                 header_content,
             )?;
             fs::write(
@@ -94,7 +99,13 @@ compiler = "auto"
 
         fs::write(dir.join(".gitignore"), "/build/\n/deps/\n")?;
 
-        util::status("Created", &format!("{} {} `{}` with {} support", actual_lang, pkg_type, name, fw));
+        util::status(
+            "Created",
+            &format!(
+                "{} {} `{}` with {} support",
+                actual_lang, pkg_type, name, fw
+            ),
+        );
         util::status("Hint", cfg.hint);
     } else {
         // Default path (no framework)
@@ -125,7 +136,8 @@ compiler = "auto"
         if lib {
             let (ext, header_content, src_content) = lib_files(name, lang);
             fs::write(
-                dir.join("include").join(format!("{}.{}", name, header_ext(lang))),
+                dir.join("include")
+                    .join(format!("{}.{}", name, header_ext(lang))),
                 header_content,
             )?;
             fs::write(

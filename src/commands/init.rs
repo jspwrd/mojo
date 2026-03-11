@@ -29,7 +29,11 @@ pub fn exec(lang: &str, lib: bool, framework: Option<Framework>) -> anyhow::Resu
 
     if let Some(fw) = framework {
         let cfg = framework_config(fw);
-        let actual_lang = if cfg.force_lang.is_empty() { lang } else { cfg.force_lang };
+        let actual_lang = if cfg.force_lang.is_empty() {
+            lang
+        } else {
+            cfg.force_lang
+        };
         let actual_std = if cfg.force_std.is_empty() {
             default_std(actual_lang).to_string()
         } else {
@@ -70,9 +74,9 @@ compiler = "auto"
                 fs::write(&main_path, cfg.main_content)?;
             }
         } else {
-            let header_path = cwd
-                .join("include")
-                .join(format!("{}.{}", name, header_ext(actual_lang)));
+            let header_path =
+                cwd.join("include")
+                    .join(format!("{}.{}", name, header_ext(actual_lang)));
             if !header_path.exists() {
                 let (_, header_content, _) = lib_files(&name, actual_lang);
                 fs::write(&header_path, header_content)?;
@@ -115,7 +119,10 @@ compiler = "auto"
 
         util::status(
             "Initialized",
-            &format!("{} {} `{}` with {} support", actual_lang, pkg_type, name, fw),
+            &format!(
+                "{} {} `{}` with {} support",
+                actual_lang, pkg_type, name, fw
+            ),
         );
         util::status("Hint", cfg.hint);
     } else {
