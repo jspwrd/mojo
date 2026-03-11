@@ -531,6 +531,232 @@ fn update_regenerates_lock() {
     assert!(tmp.path().join("hello/Mojo.lock").exists());
 }
 
+// ── framework templates ────────────────────────────────
+
+#[test]
+fn new_with_qt() {
+    let tmp = TempDir::new().unwrap();
+    mojo()
+        .args(["new", "myqtapp", "--qt"])
+        .current_dir(tmp.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Qt support"));
+
+    let root = tmp.path().join("myqtapp");
+    assert!(root.join("Mojo.toml").exists());
+    assert!(root.join("src/main.cpp").exists());
+    assert!(root.join("include/mainwindow.hpp").exists());
+
+    let toml = fs::read_to_string(root.join("Mojo.toml")).unwrap();
+    assert!(toml.contains("Qt5Widgets"));
+    assert!(toml.contains("lang = \"c++\""));
+}
+
+#[test]
+fn new_with_gtk() {
+    let tmp = TempDir::new().unwrap();
+    mojo()
+        .args(["new", "mygtkapp", "--gtk"])
+        .current_dir(tmp.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("GTK support"));
+
+    let root = tmp.path().join("mygtkapp");
+    assert!(root.join("Mojo.toml").exists());
+    assert!(root.join("src/main.c").exists());
+
+    let toml = fs::read_to_string(root.join("Mojo.toml")).unwrap();
+    assert!(toml.contains("gtk+-3.0"));
+    assert!(toml.contains("lang = \"c\""));
+
+    let main = fs::read_to_string(root.join("src/main.c")).unwrap();
+    assert!(main.contains("gtk/gtk.h"));
+}
+
+#[test]
+fn new_with_libcurl() {
+    let tmp = TempDir::new().unwrap();
+    mojo()
+        .args(["new", "curlapp", "--libcurl"])
+        .current_dir(tmp.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("libcurl support"));
+
+    let root = tmp.path().join("curlapp");
+    assert!(root.join("src/main.c").exists());
+
+    let toml = fs::read_to_string(root.join("Mojo.toml")).unwrap();
+    assert!(toml.contains("\"curl\""));
+
+    let main = fs::read_to_string(root.join("src/main.c")).unwrap();
+    assert!(main.contains("curl/curl.h"));
+}
+
+#[test]
+fn new_with_grpc() {
+    let tmp = TempDir::new().unwrap();
+    mojo()
+        .args(["new", "grpcapp", "--grpc"])
+        .current_dir(tmp.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("gRPC support"));
+
+    let root = tmp.path().join("grpcapp");
+    assert!(root.join("src/main.cpp").exists());
+    assert!(root.join("proto/hello.proto").exists());
+
+    let toml = fs::read_to_string(root.join("Mojo.toml")).unwrap();
+    assert!(toml.contains("grpc++"));
+
+    let proto = fs::read_to_string(root.join("proto/hello.proto")).unwrap();
+    assert!(proto.contains("service Greeter"));
+}
+
+#[test]
+fn new_with_gtest() {
+    let tmp = TempDir::new().unwrap();
+    mojo()
+        .args(["new", "testapp", "--gtest"])
+        .current_dir(tmp.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Google Test support"));
+
+    let root = tmp.path().join("testapp");
+    assert!(root.join("src/main.cpp").exists());
+
+    let toml = fs::read_to_string(root.join("Mojo.toml")).unwrap();
+    assert!(toml.contains("gtest"));
+
+    let main = fs::read_to_string(root.join("src/main.cpp")).unwrap();
+    assert!(main.contains("gtest/gtest.h"));
+    assert!(main.contains("RUN_ALL_TESTS"));
+}
+
+#[test]
+fn new_with_boost() {
+    let tmp = TempDir::new().unwrap();
+    mojo()
+        .args(["new", "boostapp", "--boost"])
+        .current_dir(tmp.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Boost support"));
+
+    let root = tmp.path().join("boostapp");
+    assert!(root.join("src/main.cpp").exists());
+
+    let toml = fs::read_to_string(root.join("Mojo.toml")).unwrap();
+    assert!(toml.contains("boost_filesystem"));
+
+    let main = fs::read_to_string(root.join("src/main.cpp")).unwrap();
+    assert!(main.contains("boost/filesystem.hpp"));
+}
+
+#[test]
+fn new_with_freertos() {
+    let tmp = TempDir::new().unwrap();
+    mojo()
+        .args(["new", "rtosapp", "--freertos"])
+        .current_dir(tmp.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("FreeRTOS support"));
+
+    let root = tmp.path().join("rtosapp");
+    assert!(root.join("src/main.c").exists());
+    assert!(root.join("include/FreeRTOSConfig.h").exists());
+
+    let toml = fs::read_to_string(root.join("Mojo.toml")).unwrap();
+    assert!(toml.contains("FreeRTOS-Kernel"));
+    assert!(toml.contains("lang = \"c\""));
+
+    let config = fs::read_to_string(root.join("include/FreeRTOSConfig.h")).unwrap();
+    assert!(config.contains("configUSE_PREEMPTION"));
+}
+
+#[test]
+fn new_with_zephyr() {
+    let tmp = TempDir::new().unwrap();
+    mojo()
+        .args(["new", "zephyrapp", "--zephyr"])
+        .current_dir(tmp.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Zephyr support"));
+
+    let root = tmp.path().join("zephyrapp");
+    assert!(root.join("src/main.c").exists());
+    assert!(root.join("prj.conf").exists());
+    assert!(root.join("CMakeLists.txt").exists());
+
+    let toml = fs::read_to_string(root.join("Mojo.toml")).unwrap();
+    assert!(toml.contains("lang = \"c\""));
+
+    let conf = fs::read_to_string(root.join("prj.conf")).unwrap();
+    assert!(conf.contains("CONFIG_PRINTK"));
+}
+
+#[test]
+fn new_framework_mutual_exclusion() {
+    let tmp = TempDir::new().unwrap();
+    mojo()
+        .args(["new", "badapp", "--qt", "--gtk"])
+        .current_dir(tmp.path())
+        .assert()
+        .failure();
+}
+
+#[test]
+fn init_with_boost() {
+    let tmp = TempDir::new().unwrap();
+    let project_dir = tmp.path().join("boostinit");
+    fs::create_dir(&project_dir).unwrap();
+
+    mojo()
+        .args(["init", "--boost"])
+        .current_dir(&project_dir)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Boost support"));
+
+    assert!(project_dir.join("Mojo.toml").exists());
+    assert!(project_dir.join("src/main.cpp").exists());
+
+    let toml = fs::read_to_string(project_dir.join("Mojo.toml")).unwrap();
+    assert!(toml.contains("boost_filesystem"));
+}
+
+#[test]
+fn new_framework_creates_test_file() {
+    let tmp = TempDir::new().unwrap();
+    mojo()
+        .args(["new", "fwtest", "--gtest"])
+        .current_dir(tmp.path())
+        .assert()
+        .success();
+
+    assert!(tmp.path().join("fwtest/tests/test_basic.cpp").exists());
+}
+
+#[test]
+fn new_framework_creates_gitignore() {
+    let tmp = TempDir::new().unwrap();
+    mojo()
+        .args(["new", "fwgit", "--libcurl"])
+        .current_dir(tmp.path())
+        .assert()
+        .success();
+
+    assert!(tmp.path().join("fwgit/.gitignore").exists());
+    let gi = fs::read_to_string(tmp.path().join("fwgit/.gitignore")).unwrap();
+    assert!(gi.contains("/build/"));
+}
+
 // ── serial build (j1) ───────────────────────────────────
 
 #[test]

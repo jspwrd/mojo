@@ -4,6 +4,7 @@ mod commands;
 mod compiler;
 mod config;
 mod deps;
+mod frameworks;
 mod incremental;
 mod lock;
 mod project;
@@ -11,7 +12,7 @@ mod scaffold;
 mod util;
 
 use clap::Parser;
-use cli::{Cli, Command};
+use cli::{Cli, Command, FrameworkFlags, resolve_framework};
 
 fn main() {
     if let Err(e) = run() {
@@ -25,8 +26,55 @@ fn run() -> anyhow::Result<()> {
     util::set_verbosity(cli.verbose, cli.quiet);
 
     match cli.command {
-        Command::New { name, lang, lib } => commands::new::exec(&name, &lang, lib),
-        Command::Init { lang, lib } => commands::init::exec(&lang, lib),
+        Command::New {
+            name,
+            lang,
+            lib,
+            qt,
+            gtk,
+            libcurl,
+            grpc,
+            gtest,
+            boost,
+            freertos,
+            zephyr,
+        } => {
+            let flags = FrameworkFlags {
+                qt,
+                gtk,
+                libcurl,
+                grpc,
+                gtest,
+                boost,
+                freertos,
+                zephyr,
+            };
+            commands::new::exec(&name, &lang, lib, resolve_framework(&flags))
+        }
+        Command::Init {
+            lang,
+            lib,
+            qt,
+            gtk,
+            libcurl,
+            grpc,
+            gtest,
+            boost,
+            freertos,
+            zephyr,
+        } => {
+            let flags = FrameworkFlags {
+                qt,
+                gtk,
+                libcurl,
+                grpc,
+                gtest,
+                boost,
+                freertos,
+                zephyr,
+            };
+            commands::init::exec(&lang, lib, resolve_framework(&flags))
+        }
         Command::Check {
             release,
             jobs,
